@@ -16,14 +16,21 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Run Claude Issue Triage
         id: claude-triage
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"'
+          show_full_output: true
+          claude_args: '--allowed-tools "Write,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"'
           prompt: |
             Analiza el issue #${{ github.event.issue.number }} de este repositorio y haz un triage automático.
 
@@ -43,9 +50,9 @@ jobs:
                crees un label nuevo; si ninguno encaja bien, no apliques ninguno. Aplica los elegidos con:
                gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"
 
-            4. Publica (o actualiza) un comentario de triage con:
-               gh issue comment ${{ github.event.issue.number }} --body-file -
-               (usa un heredoc para pasar el body y evitar problemas de escapado con markdown multilínea)
+            4. Escribe el comentario completo en /tmp/triage.md con la herramienta Write y publícalo con:
+               gh issue comment ${{ github.event.issue.number }} --body-file /tmp/triage.md
+               (no uses heredocs ni pipes: el comando debe ser una sola línea sin redirecciones)
 
                Si en los comentarios ya existe un triage automático tuyo previo (busca la cabecera
                "## 🔍 Triage automático" y la firma "Triage generado automáticamente por Claude"), indica en
