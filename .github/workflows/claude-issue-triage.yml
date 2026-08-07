@@ -1,0 +1,85 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    if: |
+      github.event.sender.type != 'Bot' &&
+      !contains(github.event.issue.title, '@claude') &&
+      !contains(github.event.issue.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"'
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} de este repositorio y haz un triage automático.
+
+            Contexto del proyecto: es un Tetris implementado en JavaScript vanilla con HTML5 Canvas y CSS,
+            sin dependencias, sin build ni tests. Toda la lógica vive en `game.js`; el marcado en `index.html`;
+            los estilos en `style.css`.
+
+            Pasos a seguir, en orden:
+
+            1. Lee el issue completo:
+               gh issue view ${{ github.event.issue.number }} --json title,body,labels,author,comments
+
+            2. Lista los labels disponibles en el repositorio:
+               gh label list --limit 100
+
+            3. Elige labels APROPIADOS únicamente de esa lista (1 a 3 como máximo). Nunca inventes ni
+               crees un label nuevo; si ninguno encaja bien, no apliques ninguno. Aplica los elegidos con:
+               gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"
+
+            4. Publica (o actualiza) un comentario de triage con:
+               gh issue comment ${{ github.event.issue.number }} --body-file -
+               (usa un heredoc para pasar el body y evitar problemas de escapado con markdown multilínea)
+
+               Si en los comentarios ya existe un triage automático tuyo previo (busca la cabecera
+               "## 🔍 Triage automático" y la firma "Triage generado automáticamente por Claude"), indica en
+               el nuevo comentario que es una actualización (por ejemplo cambiando el título a
+               "## 🔍 Triage automático (actualizado)") en vez de repetir uno idéntico.
+
+               El comentario debe estar en ESPAÑOL y seguir EXACTAMENTE esta plantilla markdown, pensada para
+               leerse de un vistazo:
+
+               ## 🔍 Triage automático
+
+               | | |
+               |---|---|
+               | **Tipo** | <Bug / Feature / Mejora / Duda / Documentación> |
+               | **Severidad** | <🔴 Alta / 🟠 Media / 🟢 Baja> |
+               | **Área** | <parte del juego afectada, ej. Rotación / colisiones, Puntuación, Renderizado, UI> |
+               | **Labels aplicados** | `label1`, `label2` (o `_ninguno_` si no aplicaste ninguno) |
+
+               ### Resumen
+               3 a 5 líneas describiendo el problema o la petición tal como se entiende, en tono neutro.
+
+               ### Información que falta
+               - [ ] <dato concreto que falta para poder actuar>
+               - [ ] <otro dato, si aplica>
+
+               (Si el issue tiene suficiente detalle, escribe en su lugar:
+               `_Nada, el issue tiene suficiente detalle._`)
+
+               ---
+               <sub>🤖 Triage generado automáticamente por Claude. No sustituye la revisión humana.</sub>
+
+            Reglas importantes:
+            - Este es un triage LIGERO: NO leas ni analices el código fuente (game.js, index.html, style.css),
+              NO propongas una implementación ni cambios de código. Solo clasifica y resume lo que dice el issue.
+            - No incluyas bloques de código largos ni cites el issue completo; el comentario debe caber en una
+              pantalla.
+            - No modifiques el título ni el cuerpo original del issue, solo añade labels y el comentario.
